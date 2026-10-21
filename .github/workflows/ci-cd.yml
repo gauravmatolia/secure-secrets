@@ -27,7 +27,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: decrypt-check
+    needs: [decrypt-check, secret-hygiene]
     steps:
       - uses: actions/checkout@v4
 
@@ -53,3 +53,10 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
+
+  secret-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No plaintext secrets or private keys in the repo
+        run: bash scripts/check-no-plaintext.sh
