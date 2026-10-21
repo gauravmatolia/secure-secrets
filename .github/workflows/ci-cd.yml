@@ -24,3 +24,32 @@ jobs:
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: sops -d --output-type json secrets/secrets.enc.env | jq 'keys'
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: decrypt-check
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sops
+        run: |
+          curl -sSfL -o sops https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.amd64
+          sudo install -m 0755 sops /usr/local/bin/sops
+
+      - name: Build and start the stack (secrets injected in memory)
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: sops exec-env secrets/secrets.enc.env 'docker compose up -d --build --wait'
+
+      - name: Smoke tests
+        run: |
+          curl -sf http://localhost:8000/health
+          curl -sf http://localhost:8000/secrets-status | jq -e 'all(.[]; .loaded)'
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
